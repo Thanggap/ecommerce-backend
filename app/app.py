@@ -116,7 +116,7 @@ app.add_middleware(
         "http://localhost:3001",
         "https://localhost:3000",  # HTTPS development
         "https://localhost:3001",
-        # Add production domain here
+        "https://ecommerce-frontend-orpin.vercel.app",  # Production frontend
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
