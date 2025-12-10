@@ -47,7 +47,7 @@ def get_es_client() -> Elasticsearch:
                 max_retries=3
             )
         
-        # Test connection
+        # Test connection with ping (more reliable than info() for Elastic Cloud)
         if client.ping():
             logger.info(f"Successfully connected to Elasticsearch at {ELASTIC_URL}")
         else:

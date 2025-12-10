@@ -14,8 +14,8 @@ INDEX_NAME = os.getenv("ELASTICSEARCH_INDEX_PRODUCTS", "products")
 # Vietnamese-optimized index mapping with custom analyzer
 PRODUCT_INDEX_MAPPING = {
     "settings": {
-        "number_of_shards": 1,
-        "number_of_replicas": 0,
+        # Note: Serverless mode doesn't support number_of_shards/replicas
+        # These are managed automatically by Elastic Cloud Serverless
         "analysis": {
             "analyzer": {
                 "vietnamese_analyzer": {
@@ -123,7 +123,11 @@ def ensure_product_index():
         
         if not es.indices.exists(index=INDEX_NAME):
             logger.info(f"Creating index: {INDEX_NAME}")
-            es.indices.create(index=INDEX_NAME, body=PRODUCT_INDEX_MAPPING)
+            es.indices.create(
+                index=INDEX_NAME,
+                mappings=PRODUCT_INDEX_MAPPING["mappings"],
+                settings=PRODUCT_INDEX_MAPPING["settings"]
+            )
             logger.info(f"Index {INDEX_NAME} created successfully")
         else:
             logger.info(f"Index {INDEX_NAME} already exists")

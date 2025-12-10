@@ -185,16 +185,14 @@ def search_products_by_name(query: str, limit: int = 10) -> list:
         
         result = es.search(
             index=INDEX_NAME,
-            body={
-                "query": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["product_name^3", "blurb^2", "description"],
-                        "fuzziness": "AUTO"
-                    }
-                },
-                "size": limit
-            }
+            query={
+                "multi_match": {
+                    "query": query,
+                    "fields": ["product_name^3", "blurb^2", "description"],
+                    "fuzziness": "AUTO"
+                }
+            },
+            size=limit
         )
         
         hits = result["hits"]["hits"]
