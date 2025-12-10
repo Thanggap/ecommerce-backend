@@ -18,4 +18,5 @@ redis[hiredis]
 elasticsearch==8.15.0
 openai
 stripe
+email-validator
 app
