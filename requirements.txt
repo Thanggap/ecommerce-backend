@@ -9,8 +9,8 @@ marshmallow-sqlalchemy
 psycopg2-binary
 alembic
 python-jose
-passlib
-bcrypt
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
 python-dotenv
 colorama
 cloudinary
