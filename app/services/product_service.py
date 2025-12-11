@@ -145,7 +145,7 @@ class Product_Service():
             
             # Pagination
             products = query.offset(page * limit).limit(limit).all()
-            return products
+            return [map_product_to_response(p).dict() for p in products]
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=I18nKeys.PRODUCT_FETCH_ERROR)
