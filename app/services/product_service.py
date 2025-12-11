@@ -147,6 +147,7 @@ class Product_Service():
             products = query.offset(page * limit).limit(limit).all()
             return [map_product_to_response(p).dict() for p in products]
         except Exception as e:
+            logger.error(f"Error fetching products: {str(e)}", exc_info=True)
             db.rollback()
             raise HTTPException(status_code=500, detail=I18nKeys.PRODUCT_FETCH_ERROR)
     # Get a single product by ID

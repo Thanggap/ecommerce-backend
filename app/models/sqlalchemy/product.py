@@ -19,6 +19,7 @@ class Product(Base):
     blurb = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     image_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # Supplement-specific fields
     serving_size = Column(String(100), nullable=True)
