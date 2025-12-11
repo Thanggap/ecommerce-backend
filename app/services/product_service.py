@@ -90,7 +90,8 @@ class Product_Service():
         search: Optional[str] = None,
         manufacturer: Optional[str] = None,
         certification: Optional[str] = None,
-        on_sale: Optional[bool] = None
+        on_sale: Optional[bool] = None,
+        sort_by: Optional[str] = "newest"
     ) -> List[Dict]:
         try:
             query = db.query(Product)
@@ -130,6 +131,17 @@ class Product_Service():
                         Product.blurb.ilike(f"%{search}%")
                     )
                 )
+            
+            # Sort
+            if sort_by == "price_asc":
+                query = query.order_by(Product.price.asc())
+            elif sort_by == "price_desc":
+                query = query.order_by(Product.price.desc())
+            elif sort_by == "popular":
+                # Sort by number of reviews or sales (currently sorting by ID as placeholder)
+                query = query.order_by(Product.id.desc())
+            else:  # "newest" or default
+                query = query.order_by(Product.created_at.desc())
             
             # Pagination
             products = query.offset(page * limit).limit(limit).all()

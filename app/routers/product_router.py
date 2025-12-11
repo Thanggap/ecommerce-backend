@@ -37,10 +37,11 @@ async def read_products(
     search: Optional[str] = Query(None, description="Search by product name or description"),
     manufacturer: Optional[str] = Query(None, description="Filter by manufacturer/brand"),
     certification: Optional[str] = Query(None, description="Filter by certification (FDA, GMP, NSF, etc.)"),
-    on_sale: Optional[bool] = Query(None, description="Filter products on sale (with sale_price)")
+    on_sale: Optional[bool] = Query(None, description="Filter products on sale (with sale_price)"),
+    sort_by: Optional[str] = Query("newest", description="Sort by: newest, price_asc, price_desc, popular")
 ):
     """Get products with optional filters - with Redis cache"""
-    cache_key = f"products:page={page}:limit={limit}:cat={category}:type={product_type}:min={min_price}:max={max_price}:search={search}:mfr={manufacturer}:cert={certification}:sale={on_sale}"
+    cache_key = f"products:page={page}:limit={limit}:cat={category}:type={product_type}:min={min_price}:max={max_price}:search={search}:mfr={manufacturer}:cert={certification}:sale={on_sale}:sort={sort_by}"
     
     # Try cache first
     cached = await cache_get(cache_key)
@@ -58,7 +59,8 @@ async def read_products(
         search=search,
         manufacturer=manufacturer,
         certification=certification,
-        on_sale=on_sale
+        on_sale=on_sale,
+        sort_by=sort_by
     )
     
     # Set cache (TTL 5 minutes)

@@ -10,6 +10,7 @@ psycopg2-binary
 alembic
 python-jose
 passlib
+bcrypt
 python-dotenv
 colorama
 cloudinary
