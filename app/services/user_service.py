@@ -30,7 +30,9 @@ class UserServices:
     def hash_password(password: str) -> tuple[str, str]:
         """Hash password with bcrypt - bcrypt auto generates salt internally"""
         # Truncate password to 72 bytes (bcrypt limit)
-        truncated = password[:72]
+        # Use bytes truncation to handle Unicode correctly
+        password_bytes = password.encode('utf-8')[:72]
+        truncated = password_bytes.decode('utf-8', errors='ignore')
         hashed = pwd_context.hash(truncated)
         # Return empty salt since bcrypt handles it internally
         return hashed, ""
@@ -38,7 +40,8 @@ class UserServices:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str, salt: str) -> bool:
         """Verify password against hash"""
-        truncated = plain_password[:72]
+        password_bytes = plain_password.encode('utf-8')[:72]
+        truncated = password_bytes.decode('utf-8', errors='ignore')
         return pwd_context.verify(truncated, hashed_password)
 
     @staticmethod
