@@ -287,10 +287,12 @@ class OrderService:
                     user_id=str(order.user_id),
                     user_email=users_map.get(str(order.user_id)),
                     shipping_name=order.shipping_name,
+                    shipping_email=order.shipping_email,
                     total_amount=order.total_amount,
                     status=order.status,
                     items_count=len(order.items) if order.items else 0,
-                    created_at=order.created_at
+                    created_at=order.created_at,
+                    updated_at=order.updated_at
                 )
                 for order in orders
             ]
@@ -355,7 +357,16 @@ class OrderService:
     
     @staticmethod
     def user_cancel_order(user_id: str, order_id: int) -> OrderResponse:
-        """Cancel order by user (only if status is Pending or Confirmed)"""
+        """
+        Cancel/Return order by user with automatic refund logic
+        - PENDING → CANCELLED (no refund, no stock rollback)
+        - CONFIRMED → REFUND_PENDING → REFUNDED (auto refund + stock rollback via webhook)
+        - PROCESSING → Error (need admin approval)
+        - SHIPPED → Error (cannot cancel)
+        - DELIVERED → RETURN_REQUESTED (need admin approval, 7-day window)
+        """
+        from app.services.refund_service import RefundService
+        
         db = get_db_session()
         try:
             # Get order and verify ownership
@@ -372,23 +383,115 @@ class OrderService:
                     detail=I18nKeys.ORDER_NOT_FOUND
                 )
             
-            # Only allow cancel if order is Pending or Confirmed
-            if order.status not in [OrderStatus.PENDING.value, OrderStatus.CONFIRMED.value]:
+            # Handle cancel/return based on order status
+            if order.status == OrderStatus.PENDING.value:
+                # PENDING: Just cancel - no payment yet, no stock deducted
+                order.status = OrderStatus.CANCELLED.value
+                db.commit()
+                db.refresh(order)
+                print(f"[Cancel] Order {order_id} cancelled (was PENDING, no refund needed)")
+                return OrderService.get_order_detail(user_id, order_id)
+            
+            elif order.status == OrderStatus.CONFIRMED.value:
+                # CONFIRMED: Need to refund - payment received, stock deducted
+                
+                # Validate payment_intent_id exists
+                if not order.payment_intent_id:
+                    # No payment intent = payment not completed via Stripe
+                    # Just cancel the order without refund
+                    order.status = OrderStatus.CANCELLED.value
+                    db.commit()
+                    db.refresh(order)
+                    print(f"[Cancel] Order {order_id} cancelled (CONFIRMED but no payment_intent_id, no refund needed)")
+                    return OrderService.get_order_detail(user_id, order_id)
+                
+                db.close()  # Close DB before calling RefundService
+                
+                try:
+                    RefundService.create_refund(
+                        order_id=order_id,
+                        reason="Customer requested cancellation"
+                    )
+                    print(f"[Cancel] Order {order_id} refund initiated (was CONFIRMED)")
+                    # Status is now REFUND_PENDING, will become REFUNDED via webhook
+                    return OrderService.get_order_detail(user_id, order_id)
+                except HTTPException:
+                    raise
+            
+            elif order.status == OrderStatus.PROCESSING.value:
+                # PROCESSING: Cannot cancel without approval
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot cancel order that has been shipped or delivered"
+                    detail="Order is being processed. Please contact support to cancel this order."
                 )
             
-            # Rollback stock if order was confirmed (stock was deducted)
-            if order.status == OrderStatus.CONFIRMED.value:
-                OrderService.rollback_stock_on_cancel(order_id)
+            elif order.status == OrderStatus.SHIPPED.value:
+                # SHIPPED: Cannot cancel
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot cancel order that has been shipped. Wait for delivery to request return."
+                )
             
-            # Update status to cancelled
-            order.status = OrderStatus.CANCELLED.value
+            elif order.status == OrderStatus.DELIVERED.value:
+                # DELIVERED: Request return (7-day window, admin approval required)
+                db.close()  # Close DB before calling RefundService
+                
+                try:
+                    return RefundService.request_return(
+                        order_id=order_id,
+                        user_id=user_id,
+                        reason="Customer requested return"
+                    )
+                except HTTPException:
+                    raise
+            
+            else:
+                # CANCELLED, RETURN_REQUESTED, REFUND_PENDING, REFUNDED: Already cancelled/refunded
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Order is already {order.status}"
+                )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            print(f"[Cancel] Error cancelling order {order_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to cancel order"
+            )
+        finally:
+            if db:
+                db.close()
+
+    @staticmethod
+    def confirm_payment(order_id: int, payment_intent_id: str = None) -> OrderResponse:
+        """
+        Confirm payment for order (called by webhook)
+        Updates status to CONFIRMED and saves payment_intent_id for future refunds
+        """
+        db = get_db_session()
+        try:
+            order = db.query(Order).options(
+                joinedload(Order.items)
+            ).filter(Order.id == order_id).first()
+            
+            if not order:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=I18nKeys.ORDER_NOT_FOUND
+                )
+            
+            # Update status and payment_intent_id
+            order.status = OrderStatus.CONFIRMED.value
+            if payment_intent_id:
+                order.payment_intent_id = payment_intent_id
+            
             db.commit()
             db.refresh(order)
             
-            return OrderService.get_order_detail(user_id, order_id)
+            return OrderService.admin_get_order_detail(order_id)
         finally:
             db.close()
 

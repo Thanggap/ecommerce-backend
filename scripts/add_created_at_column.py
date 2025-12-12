@@ -1,5 +1,4 @@
 """
-Script để add created_at column vào products table nếu chưa có
 """
 import sys
 import os

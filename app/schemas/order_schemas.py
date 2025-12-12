@@ -50,6 +50,16 @@ class OrderResponse(BaseModel):
     status: str
     note: Optional[str] = None
     
+    # Payment & Refund info
+    payment_intent_id: Optional[str] = None
+    refund_id: Optional[str] = None
+    refund_amount: Optional[float] = None
+    refund_reason: Optional[str] = None
+    refunded_at: Optional[datetime] = None
+    
+    # Return tracking
+    return_requested_at: Optional[datetime] = None
+    
     # Items
     items: List[OrderItemResponse] = []
     
@@ -82,10 +92,12 @@ class AdminOrderListItem(BaseModel):
     user_id: str
     user_email: Optional[str] = None
     shipping_name: str
+    shipping_email: str
     total_amount: float
     status: str
     items_count: int
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

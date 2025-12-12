@@ -71,3 +71,38 @@ def admin_update_order_status(
 ):
     """Update order status (admin only)"""
     return OrderService.admin_update_order_status(order_id, request.status)
+
+
+# =====================
+# Return Management (Admin)
+# =====================
+
+@order_router.get("/admin/orders/returns/pending")
+def admin_get_pending_returns(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_admin)
+):
+    """Get all pending return requests (admin only)"""
+    return OrderService.admin_get_all_orders(page=page, size=size, status_filter="return_requested")
+
+
+@order_router.post("/admin/orders/{order_id}/returns/approve")
+def admin_approve_return(
+    order_id: int,
+    current_user: User = Depends(require_admin)
+):
+    """Approve return request and initiate refund (admin only)"""
+    from app.services.refund_service import RefundService
+    return RefundService.approve_return(order_id)
+
+
+@order_router.post("/admin/orders/{order_id}/returns/reject")
+def admin_reject_return(
+    order_id: int,
+    rejection_reason: Optional[str] = Query(None),
+    current_user: User = Depends(require_admin)
+):
+    """Reject return request (admin only)"""
+    from app.services.refund_service import RefundService
+    return RefundService.reject_return(order_id, rejection_reason)

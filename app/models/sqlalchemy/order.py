@@ -18,6 +18,10 @@ class OrderStatus(str, enum.Enum):
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    RETURN_REQUESTED = "return_requested"
+    RETURN_APPROVED = "return_approved"
+    REFUND_PENDING = "refund_pending"
+    REFUNDED = "refunded"
 
 
 class Order(Base):
@@ -38,6 +42,16 @@ class Order(Base):
     total_amount = Column("total_amount", Float, nullable=False, default=0.0)
     status = Column("status", String(20), default=OrderStatus.PENDING.value)
     note = Column("note", Text, nullable=True)
+    
+    # Payment & Refund info
+    payment_intent_id = Column("payment_intent_id", String(255), nullable=True)
+    refund_id = Column("refund_id", String(255), nullable=True)
+    refund_amount = Column("refund_amount", Float, nullable=True)
+    refund_reason = Column("refund_reason", Text, nullable=True)
+    refunded_at = Column("refunded_at", DateTime, nullable=True)
+    
+    # Return tracking
+    return_requested_at = Column("return_requested_at", DateTime, nullable=True)
     
     created_at = Column("created_at", DateTime, default=datetime.utcnow)
     updated_at = Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
