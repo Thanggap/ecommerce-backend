@@ -212,12 +212,20 @@ class RefundService:
             db.close()
 
     @staticmethod
-    def request_return(order_id: int, user_id: str, reason: str = None) -> OrderResponse:
+    def request_return(
+        order_id: int, 
+        user_id: str, 
+        reason: str = None,
+        evidence_photos: list = None,
+        evidence_video: str = None,
+        evidence_description: str = None
+    ) -> OrderResponse:
         """
         User request return for DELIVERED order (within 7 days)
         - Validates order is DELIVERED
         - Checks 7-day return window
         - Updates status to RETURN_REQUESTED
+        - Optionally stores evidence photos/video/description
         """
         from datetime import timedelta
         
@@ -263,10 +271,18 @@ class RefundService:
             if reason:
                 order.refund_reason = reason
             
+            # Store evidence if provided
+            if evidence_photos:
+                order.return_evidence_photos = evidence_photos
+            if evidence_video:
+                order.return_evidence_video = evidence_video
+            if evidence_description:
+                order.return_evidence_description = evidence_description
+            
             db.commit()
             db.refresh(order)
             
-            print(f"[Return] Order {order_id} return requested by user {user_id}")
+            print(f"[Return] Order {order_id} return requested by user {user_id} with evidence: {len(evidence_photos or [])} photos")
             
             return OrderService.get_order_detail(user_id, order_id)
             

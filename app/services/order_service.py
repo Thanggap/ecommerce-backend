@@ -304,7 +304,10 @@ class OrderService:
                     status=order.status,
                     items_count=len(order.items) if order.items else 0,
                     created_at=order.created_at,
-                    updated_at=order.updated_at
+                    updated_at=order.updated_at,
+                    return_evidence_photos=order.return_evidence_photos,
+                    return_evidence_video=order.return_evidence_video,
+                    return_evidence_description=order.return_evidence_description
                 )
                 for order in orders
             ]
@@ -374,7 +377,11 @@ class OrderService:
             db.close()
     
     @staticmethod
-    def user_cancel_order(user_id: str, order_id: int) -> OrderResponse:
+    def user_cancel_order(
+        user_id: str, 
+        order_id: int,
+        return_data: dict = None
+    ) -> OrderResponse:
         """
         Cancel/Return order by user with automatic refund logic
         - PENDING → CANCELLED (no refund, no stock rollback)
@@ -454,11 +461,20 @@ class OrderService:
                 # DELIVERED: Request return (7-day window, admin approval required)
                 db.close()  # Close DB before calling RefundService
                 
+                # Extract evidence from return_data if provided
+                evidence_photos = return_data.get('evidence_photos') if return_data else None
+                evidence_video = return_data.get('evidence_video') if return_data else None
+                evidence_description = return_data.get('evidence_description') if return_data else None
+                reason = return_data.get('reason') if return_data else "Customer requested return"
+                
                 try:
                     return RefundService.request_return(
                         order_id=order_id,
                         user_id=user_id,
-                        reason="Customer requested return"
+                        reason=reason,
+                        evidence_photos=evidence_photos,
+                        evidence_video=evidence_video,
+                        evidence_description=evidence_description
                     )
                 except HTTPException:
                     raise
@@ -482,6 +498,59 @@ class OrderService:
         finally:
             if db:
                 db.close()
+
+    @staticmethod
+    def user_confirm_delivery(user_id: str, order_id: int) -> dict:
+        """User confirms they received the order - updates status to DELIVERED"""
+        from datetime import datetime
+        
+        db = get_db_session()
+        try:
+            # Get order and verify ownership
+            order = db.query(Order).filter(
+                Order.id == order_id,
+                Order.user_id == user_id
+            ).first()
+            
+            if not order:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Order not found"
+                )
+            
+            # Validate status is SHIPPED
+            if order.status != OrderStatus.SHIPPED.value:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot confirm delivery for order with status '{order.status}'. Only SHIPPED orders can be confirmed."
+                )
+            
+            # Update status to DELIVERED
+            order.status = OrderStatus.DELIVERED.value
+            order.delivered_at = datetime.utcnow()
+            
+            db.commit()
+            
+            print(f"[Delivery] User confirmed delivery for order {order_id}")
+            
+            return {
+                "message": "Delivery confirmed successfully",
+                "order_id": order_id,
+                "status": order.status,
+                "delivered_at": order.delivered_at.isoformat() if order.delivered_at else None
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            print(f"[Delivery] Error confirming delivery for order {order_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to confirm delivery: {str(e)}"
+            )
+        finally:
+            db.close()
 
     @staticmethod
     def confirm_payment(order_id: int, payment_intent_id: str = None) -> OrderResponse:
@@ -516,6 +585,8 @@ class OrderService:
     @staticmethod
     def admin_update_order_status(order_id: int, new_status: str) -> OrderResponse:
         """Update order status (admin only)"""
+        from datetime import datetime
+        
         # Validate status
         valid_statuses = [s.value for s in OrderStatus]
         if new_status not in valid_statuses:
@@ -540,6 +611,11 @@ class OrderService:
             old_status = order.status
             if old_status == "confirmed" and new_status in ["cancelled", "refunded"]:
                 OrderService.rollback_stock_on_cancel(order_id)
+            
+            # Record shipped_at timestamp when status changes to SHIPPED
+            if new_status == OrderStatus.SHIPPED.value and old_status != OrderStatus.SHIPPED.value:
+                order.shipped_at = datetime.utcnow()
+                print(f"[Shipping] Order {order_id} marked as shipped at {order.shipped_at}")
             
             order.status = new_status
             db.commit()

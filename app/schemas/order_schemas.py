@@ -60,6 +60,11 @@ class OrderResponse(BaseModel):
     # Return tracking
     return_requested_at: Optional[datetime] = None
     
+    # Return evidence
+    return_evidence_photos: Optional[List[str]] = None
+    return_evidence_video: Optional[str] = None
+    return_evidence_description: Optional[str] = None
+    
     # Items
     items: List[OrderItemResponse] = []
     
@@ -98,6 +103,11 @@ class AdminOrderListItem(BaseModel):
     items_count: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    
+    # Return evidence fields
+    return_evidence_photos: Optional[List[str]] = None
+    return_evidence_video: Optional[str] = None
+    return_evidence_description: Optional[str] = None
 
     class Config:
         from_attributes = True

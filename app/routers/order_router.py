@@ -34,9 +34,54 @@ def get_order_detail(order_id: int, current_user: User = Depends(require_user)):
 
 
 @order_router.post("/orders/{order_id}/cancel", response_model=OrderResponse)
-def cancel_order(order_id: int, current_user: User = Depends(require_user)):
-    """Cancel order (only if status is Pending or Confirmed)"""
-    return OrderService.user_cancel_order(str(current_user.uuid), order_id)
+def cancel_order(
+    order_id: int,
+    reason: Optional[str] = Body(None),
+    evidence_photos: Optional[List[str]] = Body(None),
+    evidence_video: Optional[str] = Body(None),
+    evidence_description: Optional[str] = Body(None),
+    current_user: User = Depends(require_user)
+):
+    """Cancel order (only if status is Pending or Confirmed) or request return with evidence (if DELIVERED)"""
+    return_data = None
+    
+    # If any evidence provided, package into return_data dict
+    if reason or evidence_photos or evidence_video or evidence_description:
+        return_data = {
+            'reason': reason,
+            'evidence_photos': evidence_photos,
+            'evidence_video': evidence_video,
+            'evidence_description': evidence_description
+        }
+    
+    return OrderService.user_cancel_order(str(current_user.uuid), order_id, return_data)
+
+
+@order_router.post("/orders/{order_id}/confirm-delivery")
+def confirm_delivery(order_id: int, current_user: User = Depends(require_user)):
+    """User confirms they received the order"""
+    return OrderService.user_confirm_delivery(str(current_user.uuid), order_id)
+
+
+@order_router.post("/orders/{order_id}/review")
+def create_order_review(
+    order_id: int,
+    rating: int = Body(..., ge=1, le=5),
+    comment: str = Body(..., min_length=1),
+    images: Optional[List[str]] = Body(None),
+    video: Optional[str] = Body(None),
+    current_user: User = Depends(require_user)
+):
+    """User submits review for a delivered order"""
+    from app.services.review_service import ReviewService
+    return ReviewService.create_order_review(
+        order_id=order_id,
+        user_id=str(current_user.uuid),
+        rating=rating,
+        comment=comment,
+        images=images or [],
+        video=video
+    )
 
 
 # =====================
@@ -164,3 +209,13 @@ def admin_reject_qc(
     """Admin rejects QC check (admin only)"""
     from app.services.refund_service import RefundService
     return RefundService.reject_qc(order_id, reason)
+
+
+@order_router.post("/admin/orders/auto-delivery")
+def admin_trigger_auto_delivery(
+    dry_run: bool = Query(False, description="If true, only return count without updating"),
+    current_user: User = Depends(require_admin)
+):
+    """Manually trigger auto-delivery job (admin only)"""
+    from app.services.auto_delivery_service import AutoDeliveryService
+    return AutoDeliveryService.process_auto_delivery(dry_run=dry_run)

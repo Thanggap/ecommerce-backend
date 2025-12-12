@@ -53,6 +53,10 @@ class Order(Base):
     refund_reason = Column("refund_reason", Text, nullable=True)
     refunded_at = Column("refunded_at", DateTime, nullable=True)
     
+    # Delivery tracking
+    shipped_at = Column("shipped_at", DateTime, nullable=True)
+    delivered_at = Column("delivered_at", DateTime, nullable=True)
+    
     # Return tracking
     return_requested_at = Column("return_requested_at", DateTime, nullable=True)
     

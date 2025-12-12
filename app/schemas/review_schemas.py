@@ -29,6 +29,8 @@ class ReviewResponse(BaseModel):
     product_id: int
     content: str
     rating: int
+    images: Optional[List[str]] = None  # Array of image URLs
+    video: Optional[str] = None  # Video URL
     created_at: Optional[datetime] = None
     author: ReviewAuthor
     
