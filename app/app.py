@@ -12,6 +12,7 @@ from app.routers.chat_router import chat_router
 from app.routers.payment_router import payment_router
 from app.routers.webhook_router import webhook_router
 from app.routers.search_router import router as search_router
+from app.routers.upload_router import upload_router
 
 from app.db import create_tables
 from app.models.sqlalchemy import *
@@ -133,6 +134,7 @@ app.include_router(payment_router, tags=["Payments"])
 app.include_router(webhook_router, tags=["Webhooks"])
 app.include_router(support_router)
 app.include_router(search_router, tags=["Search"])  # Elasticsearch search
+app.include_router(upload_router, tags=["Upload"])  # File uploads
 add_pagination(app)
 
 create_tables()

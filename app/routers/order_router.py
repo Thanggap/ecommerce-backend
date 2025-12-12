@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from app.schemas.order_schemas import (
     CreateOrderRequest, OrderResponse, OrderListItem,
     AdminOrdersResponse, UpdateOrderStatusRequest
@@ -106,3 +106,61 @@ def admin_reject_return(
     """Reject return request (admin only)"""
     from app.services.refund_service import RefundService
     return RefundService.reject_return(order_id, rejection_reason)
+
+
+# === NEW: Enhanced Return Flow Endpoints ===
+
+@order_router.post("/orders/{order_id}/return/ship")
+def user_confirm_shipped(
+    order_id: int,
+    evidence_photos: list[str] = Body(...),
+    evidence_description: str = Body(...),
+    evidence_video: Optional[str] = Body(None),
+    shipping_provider: Optional[str] = Body(None),
+    tracking_number: Optional[str] = Body(None),
+    current_user: User = Depends(require_user)
+):
+    """User confirms product shipped with evidence"""
+    from app.services.refund_service import RefundService
+    return RefundService.user_confirm_shipped(
+        order_id=order_id,
+        user_id=str(current_user.uuid),
+        evidence_photos=evidence_photos,
+        evidence_description=evidence_description,
+        evidence_video=evidence_video,
+        shipping_provider=shipping_provider,
+        tracking_number=tracking_number
+    )
+
+
+@order_router.post("/admin/orders/{order_id}/return/receive")
+def admin_confirm_received(
+    order_id: int,
+    qc_notes: Optional[str] = Body(None, embed=True),
+    current_user: User = Depends(require_admin)
+):
+    """Admin confirms product received (admin only)"""
+    from app.services.refund_service import RefundService
+    return RefundService.admin_confirm_received(order_id, qc_notes)
+
+
+@order_router.post("/admin/orders/{order_id}/return/refund")
+def admin_confirm_refund(
+    order_id: int,
+    refund_amount: Optional[float] = Body(None),
+    current_user: User = Depends(require_admin)
+):
+    """Admin confirms refund after QC (admin only)"""
+    from app.services.refund_service import RefundService
+    return RefundService.admin_confirm_refund(order_id, refund_amount)
+
+
+@order_router.post("/admin/orders/{order_id}/return/reject-qc")
+def admin_reject_qc(
+    order_id: int,
+    reason: str = Body(...),
+    current_user: User = Depends(require_admin)
+):
+    """Admin rejects QC check (admin only)"""
+    from app.services.refund_service import RefundService
+    return RefundService.reject_qc(order_id, reason)

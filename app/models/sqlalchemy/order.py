@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Integer, Text, ForeignKey, DateTime, Table, Enum
+from sqlalchemy import Column, String, Float, Integer, Text, ForeignKey, DateTime, Table, Enum, JSON
 from sqlalchemy.orm import relationship, Mapped
 from datetime import datetime
 from app.db import Base
@@ -20,6 +20,9 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     RETURN_REQUESTED = "return_requested"
     RETURN_APPROVED = "return_approved"
+    RETURN_SHIPPING = "return_shipping"      # User confirmed shipped with evidence
+    RETURN_RECEIVED = "return_received"      # Admin received product, QC pending
+    RETURN_REJECTED = "return_rejected"      # QC failed or rejected
     REFUND_PENDING = "refund_pending"
     REFUNDED = "refunded"
 
@@ -52,6 +55,16 @@ class Order(Base):
     
     # Return tracking
     return_requested_at = Column("return_requested_at", DateTime, nullable=True)
+    
+    # Return evidence (user uploads before shipping)
+    return_evidence_photos = Column("return_evidence_photos", JSON, nullable=True)
+    return_evidence_video = Column("return_evidence_video", String(500), nullable=True)
+    return_evidence_description = Column("return_evidence_description", Text, nullable=True)
+    return_shipping_provider = Column("return_shipping_provider", String(100), nullable=True)
+    return_tracking_number = Column("return_tracking_number", String(100), nullable=True)
+    return_shipped_at = Column("return_shipped_at", DateTime, nullable=True)
+    return_received_at = Column("return_received_at", DateTime, nullable=True)
+    qc_notes = Column("qc_notes", Text, nullable=True)
     
     created_at = Column("created_at", DateTime, default=datetime.utcnow)
     updated_at = Column("updated_at", DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

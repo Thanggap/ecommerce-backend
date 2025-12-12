@@ -128,6 +128,27 @@ async def stripe_webhook(request: Request):
                 except Exception as e:
                     logger.error(f"[Webhook] Error processing refund {refund_id}: {e}")
     
+    elif event["type"] == "refund.updated":
+        # Handle refund.updated event (alternative to charge.refunded)
+        from app.services.refund_service import RefundService
+        
+        refund = event["data"]["object"]
+        refund_id = refund.get("id")
+        refund_status = refund.get("status")
+        
+        logger.info(f"[Webhook] refund.updated event received - ID: {refund_id}, Status: {refund_status}")
+        
+        if refund_id:
+            try:
+                if refund_status == "succeeded":
+                    RefundService.handle_refund_succeeded(refund_id)
+                    logger.info(f"[Webhook] Refund {refund_id} succeeded (via refund.updated)")
+                elif refund_status == "failed":
+                    RefundService.handle_refund_failed(refund_id)
+                    logger.warning(f"[Webhook] Refund {refund_id} failed (via refund.updated)")
+            except Exception as e:
+                logger.error(f"[Webhook] Error processing refund.updated {refund_id}: {e}")
+    
     else:
         logger.info(f"[Webhook] Unhandled event type: {event.get('type')}")
     

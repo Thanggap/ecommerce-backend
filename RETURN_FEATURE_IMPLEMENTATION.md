@@ -517,20 +517,20 @@ stripe.Refund.create(
 
 ## Implementation Phases
 
-### Phase 1: Backend Foundation (2-3 hours)
-- [ ] Add new status to OrderStatus enum
-- [ ] Create migration for evidence columns
-- [ ] Update Order model with new fields
-- [ ] Modify approve_return() to remove auto-refund
-- [ ] Add user_confirm_shipped() method
-- [ ] Add admin_confirm_received() method
-- [ ] Add admin_confirm_refund() method
-- [ ] Add reject_qc() method
-- [ ] Create upload_router.py with Cloudinary integration
-- [ ] Add new endpoints to order_router.py
-- [ ] Update schemas with evidence fields
+### Phase 1: Backend Foundation (2-3 hours) ✅ COMPLETED
+- [x] Add new status to OrderStatus enum
+- [x] Create migration for evidence columns
+- [x] Update Order model with new fields
+- [x] Modify approve_return() to remove auto-refund
+- [x] Add user_confirm_shipped() method
+- [x] Add admin_confirm_received() method
+- [x] Add admin_confirm_refund() method
+- [x] Add reject_qc() method
+- [ ] Create upload_router.py with Cloudinary integration (SKIPPED - will mock for now)
+- [x] Add new endpoints to order_router.py
+- [x] Update schemas with evidence fields
 
-### Phase 2: Frontend Components (2-3 hours)
+### Phase 2: Frontend Components (2-3 hours) - IN PROGRESS
 - [ ] Create ImageUploadMultiple component
 - [ ] Create VideoUpload component
 - [ ] Create EvidenceGallery component
@@ -538,7 +538,7 @@ stripe.Refund.create(
 - [ ] Setup upload service (Cloudinary SDK)
 
 ### Phase 3: Frontend Integration (2 hours)
-- [ ] Update IOrder interface
+- [x] Update IOrder interface
 - [ ] Add evidence upload UI to OrderDetailPage
 - [ ] Add new tabs to AdminReturnManagement
 - [ ] Add evidence display in admin view
