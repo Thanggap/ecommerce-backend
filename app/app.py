@@ -83,23 +83,36 @@ async def lifespan(app: FastAPI):
 
 
 description = """
-Ecommerce  API
+Health Supplements E-Commerce API
 
-You will be able to:
-* **Fetch Products from the Database**
-* **Add Items to cart** (_not implemented_)
-* **Manage Orders** (_not implemented_)
+A comprehensive e-commerce platform cho health supplements với full-featured order management system.
 
+## Core Features
+* **Product Management** - Browse products with advanced filtering, search (Elasticsearch), và multi-language support
+* **Shopping Cart** - Complete cart system với real-time stock validation
+* **Order Processing** - Full order lifecycle từ creation đến fulfillment với Stripe payment integration
+* **Returns & Refunds** - Professional return request handling với evidence upload (images/videos)
+* **Product Reviews** - Customer reviews với rating system và media attachments
+* **Admin Dashboard** - Comprehensive admin tools cho user/product/order management
+* **AI Chatbot** - Gemini-powered chatbot cho product recommendations
+* **Internationalization** - Multi-language (EN/VI) và currency support (USD/VND)
 
+## Tech Stack
+* **Framework**: FastAPI với async/await
+* **Database**: PostgreSQL + SQLAlchemy ORM
+* **Cache**: Redis (configured)
+* **Search**: Elasticsearch
+* **Payment**: Stripe
+* **Storage**: Cloudinary (images/videos)
+* **AI**: ChatGPT API
 """
 app = FastAPI(
-    title="E-Commerce API", 
+    title="Health Supplements E-Commerce API", 
     description=description,
-    summary="The Backend to my E-Commerce Website",
+    summary="Professional e-commerce backend with order management, returns, reviews & AI chatbot",
     contact={
-        "name": "Julian Lechner",
-        "url": "https://jlechner.com",
-        "email": "julian@jlechner.com",
+        "name": "LTK Support",
+        "email": "support@ltk-ecommerce.com",
     },
     root_path="/api",
     lifespan=lifespan
