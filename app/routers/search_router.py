@@ -6,7 +6,10 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import List, Optional
 from app.search.elastic_client import get_es_client, check_es_health
 from app.search.product_index import INDEX_NAME, get_index_stats
+from app.cache import cache_get, cache_set
 import logging
+import hashlib
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +32,21 @@ def index_statistics():
     return get_index_stats()
 
 
+def build_search_cache_key(params: dict) -> str:
+    """Build cache key from search parameters"""
+    # Sort params for consistent hashing
+    sorted_params = json.dumps(params, sort_keys=True)
+    hash_obj = hashlib.md5(sorted_params.encode())
+    return f"search:{hash_obj.hexdigest()}"
+
+
 @router.get("/products")
-def search_products(
+async def search_products(
     q: Optional[str] = Query(None, min_length=1, description="Search query"),
     product_type: Optional[str] = Query(None, description="Filter by product type"),
+    category: Optional[str] = Query(None, description="Filter by category name"),
+    manufacturer: Optional[str] = Query(None, description="Filter by manufacturer/brand"),
+    certification: Optional[str] = Query(None, description="Filter by certification"),
     min_price: Optional[float] = Query(None, ge=0, description="Minimum price"),
     max_price: Optional[float] = Query(None, ge=0, description="Maximum price"),
     on_sale: Optional[bool] = Query(None, description="Filter products on sale"),
@@ -47,6 +61,7 @@ def search_products(
     - Vietnamese text support with diacritics handling
     - Fuzzy matching for typo tolerance
     - Multi-field search (name, description, ingredients, etc.)
+    - Category, manufacturer, certification filters
     - Price range filtering
     - Product type filtering
     - Sale items filtering
@@ -56,6 +71,9 @@ def search_products(
     Args:
         q: Search query string (optional, returns all if not provided)
         product_type: Filter by product type (e.g., "Vitamins & Minerals")
+        category: Filter by category name (e.g., "Protein & Fitness")
+        manufacturer: Filter by manufacturer/brand (e.g., "NOW Foods")
+        certification: Filter by certification (e.g., "FDA", "GMP")
         min_price: Minimum price filter
         max_price: Maximum price filter
         on_sale: Filter only products with sale_price
@@ -67,6 +85,30 @@ def search_products(
         dict: Search results with items, total, page info
     """
     try:
+        # Build cache key from all params
+        cache_params = {
+            "q": q,
+            "product_type": product_type,
+            "category": category,
+            "manufacturer": manufacturer,
+            "certification": certification,
+            "min_price": min_price,
+            "max_price": max_price,
+            "on_sale": on_sale,
+            "page": page,
+            "limit": limit,
+            "sort_by": sort_by
+        }
+        cache_key = build_search_cache_key(cache_params)
+        
+        # Try cache first
+        cached = await cache_get(cache_key)
+        if cached:
+            logger.info(f"Cache HIT for search: {cache_key[:20]}...")
+            return cached
+        
+        logger.info(f"Cache MISS for search: {cache_key[:20]}...")
+        
         es = get_es_client()
         
         # Build query
@@ -96,6 +138,18 @@ def search_products(
         # Filter: product_type
         if product_type:
             filter_queries.append({"term": {"product_type": product_type}})
+        
+        # Filter: category (exact match on categories array)
+        if category:
+            filter_queries.append({"term": {"categories": category}})
+        
+        # Filter: manufacturer (exact match)
+        if manufacturer:
+            filter_queries.append({"term": {"manufacturer.keyword": manufacturer}})
+        
+        # Filter: certification (match query for partial matching)
+        if certification:
+            filter_queries.append({"match": {"certification": certification}})
         
         # Filter: price range
         if min_price is not None or max_price is not None:
@@ -156,7 +210,7 @@ def search_products(
                 "score": hit["_score"]  # Relevance score
             })
         
-        return {
+        result_data = {
             "items": products,
             "total": total,
             "page": page,
@@ -166,13 +220,18 @@ def search_products(
             "took_ms": result["took"]  # Search time in milliseconds
         }
         
+        # Cache search results for 5 minutes (300 seconds)
+        await cache_set(cache_key, result_data, ttl=300)
+        
+        return result_data
+        
     except Exception as e:
         logger.error(f"Search failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @router.get("/autocomplete")
-def autocomplete_search(
+async def autocomplete_search(
     q: str = Query(..., min_length=2, description="Autocomplete query"),
     limit: int = Query(5, ge=1, le=10, description="Max suggestions")
 ):
@@ -187,6 +246,14 @@ def autocomplete_search(
         list: Suggested product names
     """
     try:
+        # Build cache key for autocomplete
+        cache_key = f"autocomplete:{q.lower()}:{limit}"
+        
+        # Try cache first
+        cached = await cache_get(cache_key)
+        if cached:
+            return cached
+        
         es = get_es_client()
         
         result = es.search(
@@ -213,7 +280,12 @@ def autocomplete_search(
                 "type": source.get("product_type")
             })
         
-        return {"suggestions": suggestions}
+        result_data = {"suggestions": suggestions}
+        
+        # Cache autocomplete for 10 minutes (autocomplete queries repeat often)
+        await cache_set(cache_key, result_data, ttl=600)
+        
+        return result_data
         
     except Exception as e:
         logger.error(f"Autocomplete failed: {e}")

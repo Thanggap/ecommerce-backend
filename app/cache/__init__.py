@@ -122,6 +122,18 @@ def product_slug_cache_key(slug: str) -> str:
     return f"product:slug:{slug}"
 
 
+def search_cache_key(query: str = "", **filters) -> str:
+    """Generate cache key for search results"""
+    filter_str = ":".join(f"{k}={v}" for k, v in sorted(filters.items()) if v is not None)
+    query_part = f"q={query}" if query else "q=*"
+    return f"search:{query_part}:{filter_str}" if filter_str else f"search:{query_part}"
+
+
+def autocomplete_cache_key(query: str) -> str:
+    """Generate cache key for autocomplete results"""
+    return f"autocomplete:{query.lower()}"
+
+
 # =====================
 # Cache Invalidation
 # =====================
@@ -136,3 +148,9 @@ async def invalidate_product_cache(product_id: int = None, slug: str = None):
     
     # Delete all product list caches
     await cache_delete_pattern("products:*")
+    
+    # Delete all search caches (search results depend on product data)
+    await cache_delete_pattern("search:*")
+    
+    # Delete all autocomplete caches
+    await cache_delete_pattern("autocomplete:*")

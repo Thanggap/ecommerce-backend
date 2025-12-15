@@ -92,3 +92,62 @@ def create_checkout_session(
         
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@payment_router.post("/payments/verify-session/{session_id}")
+def verify_payment_session(
+    session_id: str,
+    current_user: User = Depends(require_user)
+):
+    """
+    Verify Stripe session and auto-confirm order if payment succeeded
+    This is a fallback for when webhooks don't work (dev environment)
+    """
+    try:
+        # Retrieve session from Stripe
+        session = stripe.checkout.Session.retrieve(session_id)
+        
+        # Check if payment was successful
+        if session.payment_status == "paid":
+            order_id = session.metadata.get("order_id")
+            
+            if order_id:
+                # Update order status to confirmed
+                from app.db import get_db_session
+                from app.models.sqlalchemy.order import Order, OrderStatus
+                
+                db = get_db_session()
+                try:
+                    order = db.query(Order).filter(Order.id == int(order_id)).first()
+                    if order and order.status == OrderStatus.PENDING.value:
+                        order.status = OrderStatus.CONFIRMED.value
+                        order.payment_intent_id = session.payment_intent
+                        db.commit()
+                        
+                        # Deduct stock
+                        OrderService.deduct_stock_on_payment(int(order_id))
+                        
+                        return {
+                            "success": True,
+                            "order_id": order_id,
+                            "status": "confirmed",
+                            "message": "Order confirmed successfully"
+                        }
+                    elif order and order.status == OrderStatus.CONFIRMED.value:
+                        return {
+                            "success": True,
+                            "order_id": order_id,
+                            "status": "already_confirmed",
+                            "message": "Order already confirmed"
+                        }
+                finally:
+                    db.close()
+        
+        return {
+            "success": False,
+            "payment_status": session.payment_status,
+            "message": "Payment not completed"
+        }
+        
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))

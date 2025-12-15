@@ -40,33 +40,23 @@ async def read_products(
     on_sale: Optional[bool] = Query(None, description="Filter products on sale (with sale_price)"),
     sort_by: Optional[str] = Query("newest", description="Sort by: newest, price_asc, price_desc, popular")
 ):
-    """Get products with optional filters - with Redis cache"""
-    cache_key = f"products:page={page}:limit={limit}:cat={category}:type={product_type}:min={min_price}:max={max_price}:search={search}:mfr={manufacturer}:cert={certification}:sale={on_sale}:sort={sort_by}"
+    """Get products with optional filters - delegates to Elasticsearch for fast search"""
+    from app.routers.search_router import search_products
     
-    # Try cache first
-    cached = await cache_get(cache_key)
-    if cached:
-        return cached
-    
-    # Cache miss - query DB
-    result = Product_Service.get_products(
-        page=page,
-        limit=limit,
-        category=category,
+    # Delegate to Elasticsearch search (much faster than SQL)
+    return await search_products(
+        q=search,
         product_type=product_type,
-        min_price=min_price,
-        max_price=max_price,
-        search=search,
+        category=category,
         manufacturer=manufacturer,
         certification=certification,
+        min_price=min_price,
+        max_price=max_price,
         on_sale=on_sale,
+        page=page,
+        limit=limit,
         sort_by=sort_by
     )
-    
-    # Set cache (TTL 5 minutes)
-    await cache_set(cache_key, result, ttl=300)
-    
-    return result
 
 
 @product_router.get("/products/{product_slug}", response_model=ProductResponse)
