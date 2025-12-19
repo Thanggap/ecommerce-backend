@@ -1,5 +1,6 @@
 import os
 import secrets
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import HTTPException, Depends, status
@@ -28,21 +29,28 @@ class UserServices:
 
     @staticmethod
     def hash_password(password: str) -> tuple[str, str]:
-        """Hash password with bcrypt - bcrypt auto generates salt internally"""
-        # Truncate password to 72 bytes (bcrypt limit)
-        # Use bytes truncation to handle Unicode correctly
-        password_bytes = password.encode('utf-8')[:72]
-        truncated = password_bytes.decode('utf-8', errors='ignore')
-        hashed = pwd_context.hash(truncated)
-        # Return empty salt since bcrypt handles it internally
+        """Hash password with bcrypt - bcrypt auto generates salt internally
+        
+        Pre-hash với SHA-256 để handle password dài bất kỳ và tránh bcrypt 72-byte limit.
+        SHA-256 output là 64 hex chars (256 bits) - luôn fit trong bcrypt limit.
+        """
+        # Pre-hash password với SHA-256 để normalize length
+        sha256_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+        # Bcrypt hash the SHA-256 output (64 chars, luôn safe)
+        hashed = pwd_context.hash(sha256_hash)
+        # Return empty salt vì bcrypt tự generate internally
         return hashed, ""
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str, salt: str) -> bool:
-        """Verify password against hash"""
-        password_bytes = plain_password.encode('utf-8')[:72]
-        truncated = password_bytes.decode('utf-8', errors='ignore')
-        return pwd_context.verify(truncated, hashed_password)
+        """Verify password against hash
+        
+        Must pre-hash với SHA-256 giống như khi hash_password
+        """
+        # Pre-hash password với SHA-256
+        sha256_hash = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
+        # Verify bcrypt hash
+        return pwd_context.verify(sha256_hash, hashed_password)
 
     @staticmethod
     def register(user_data: dict) -> UserResponse:
