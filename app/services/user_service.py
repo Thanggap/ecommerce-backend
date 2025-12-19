@@ -1,12 +1,12 @@
 import os
 import secrets
 import hashlib
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from dotenv import load_dotenv
 
 from app.models.sqlalchemy import User
@@ -16,7 +16,6 @@ from app.i18n_keys import I18nKeys
 
 load_dotenv()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
@@ -29,7 +28,7 @@ class UserServices:
 
     @staticmethod
     def hash_password(password: str) -> tuple[str, str]:
-        """Hash password with bcrypt - bcrypt auto generates salt internally
+        """Hash password với bcrypt directly (no passlib wrapper)
         
         Pre-hash với SHA-256 để handle password dài bất kỳ và tránh bcrypt 72-byte limit.
         SHA-256 output là 64 hex chars (256 bits) - luôn fit trong bcrypt limit.
@@ -37,20 +36,21 @@ class UserServices:
         # Pre-hash password với SHA-256 để normalize length
         sha256_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
         # Bcrypt hash the SHA-256 output (64 chars, luôn safe)
-        hashed = pwd_context.hash(sha256_hash)
-        # Return empty salt vì bcrypt tự generate internally
-        return hashed, ""
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(sha256_hash.encode('utf-8'), salt)
+        # Return hashed as string, empty salt (bcrypt stores salt in hash)
+        return hashed.decode('utf-8'), ""
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str, salt: str) -> bool:
-        """Verify password against hash
+        """Verify password against hash với bcrypt directly
         
         Must pre-hash với SHA-256 giống như khi hash_password
         """
         # Pre-hash password với SHA-256
         sha256_hash = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
         # Verify bcrypt hash
-        return pwd_context.verify(sha256_hash, hashed_password)
+        return bcrypt.checkpw(sha256_hash.encode('utf-8'), hashed_password.encode('utf-8'))
 
     @staticmethod
     def register(user_data: dict) -> UserResponse:
